@@ -31,7 +31,7 @@ func TestTrigger(t *testing.T) {
 	act := Action{
 		Trigger: "test",
 		Do: func(state *State, _ ...interface{}) error {
-			state.OutputStr = "called"
+			state.OutputStr.WriteString("called")
 			return nil
 		},
 	}
@@ -39,14 +39,14 @@ func TestTrigger(t *testing.T) {
 	state := &State{}
 	act.Parse(state, []string{"test"})
 
-	checkEq(t, state.OutputStr, "called")
+	checkEq(t, state.OutputStr.String(), "called")
 }
 
 func TestSubTrigger(t *testing.T) {
 	act := Action{
 		Trigger: "test",
 		Do: func(state *State, _ ...interface{}) error {
-			state.OutputStr = "called"
+			state.OutputStr.WriteString("called")
 			return nil
 		},
 	}
@@ -54,7 +54,7 @@ func TestSubTrigger(t *testing.T) {
 	subAct := Action{
 		Trigger: "sub",
 		Do: func(state *State, _ ...interface{}) error {
-			state.OutputStr += " sub"
+			state.OutputStr.WriteString(" sub")
 			return nil
 		},
 	}
@@ -65,7 +65,7 @@ func TestSubTrigger(t *testing.T) {
 	state := &State{}
 	act.Parse(state, []string{"test", "sub"})
 
-	checkEq(t, state.OutputStr, "called sub")
+	checkEq(t, state.OutputStr.String(), "called sub")
 }
 
 func TestPath(t *testing.T) {
@@ -81,9 +81,9 @@ func TestConsumeMin(t *testing.T) {
 		Do: func(state *State, _ ...interface{}) error {
 			args := state.Args()
 			if args[0] != "arg1" || args[1] != "arg2" || len(args) != 2 {
-				state.OutputStr = "failed"
+				state.OutputStr.WriteString("failed")
 			} else {
-				state.OutputStr = "called"
+				state.OutputStr.WriteString("called")
 			}
 			return nil
 		},
@@ -92,7 +92,7 @@ func TestConsumeMin(t *testing.T) {
 	state := &State{}
 	act.Parse(state, []string{"test", "arg1", "arg2", "arg3"})
 
-	checkEq(t, state.OutputStr, "called")
+	checkEq(t, state.OutputStr.String(), "called")
 }
 
 func TestConsumeMinMax(t *testing.T) {
@@ -103,9 +103,9 @@ func TestConsumeMinMax(t *testing.T) {
 		Do: func(state *State, _ ...interface{}) error {
 			args := state.Args()
 			if args[0] != "arg1" || args[1] != "arg2" || args[2] != "arg3" || len(args) != 3 {
-				state.OutputStr = "failed"
+				state.OutputStr.WriteString("failed")
 			} else {
-				state.OutputStr = "called"
+				state.OutputStr.WriteString("called")
 			}
 			return nil
 		},
@@ -114,7 +114,7 @@ func TestConsumeMinMax(t *testing.T) {
 	state := &State{}
 	act.Parse(state, []string{"test", "arg1", "arg2", "arg3"})
 
-	checkEq(t, state.OutputStr, "called")
+	checkEq(t, state.OutputStr.String(), "called")
 }
 
 func TestConsumeMax(t *testing.T) {
@@ -124,9 +124,9 @@ func TestConsumeMax(t *testing.T) {
 		Do: func(state *State, _ ...interface{}) error {
 			args := state.Args()
 			if args[0] != "arg1" || args[1] != "arg2" || len(args) != 2 {
-				state.OutputStr = "failed"
+				state.OutputStr.WriteString("failed")
 			} else {
-				state.OutputStr = "called"
+				state.OutputStr.WriteString("called")
 			}
 			return nil
 		},
@@ -135,7 +135,7 @@ func TestConsumeMax(t *testing.T) {
 	state := &State{}
 	act.Parse(state, []string{"test", "arg1", "arg2", "arg3"})
 
-	checkEq(t, state.OutputStr, "called")
+	checkEq(t, state.OutputStr.String(), "called")
 }
 
 func TestConsumeAll(t *testing.T) {
@@ -145,9 +145,9 @@ func TestConsumeAll(t *testing.T) {
 		Do: func(state *State, _ ...interface{}) error {
 			args := state.Args()
 			if args[0] != "arg1" || args[1] != "arg2" || args[2] != "arg3" || len(args) != 3 {
-				state.OutputStr = "failed"
+				state.OutputStr.WriteString("failed")
 			} else {
-				state.OutputStr = "called"
+				state.OutputStr.WriteString("called")
 			}
 			return nil
 		},
@@ -158,7 +158,7 @@ func TestConsumeAll(t *testing.T) {
 	err = act.Parse(state, []string{"test", "arg1", "arg2", "arg3"})
 	checkEq(t, err, nil)
 
-	checkEq(t, state.OutputStr, "called")
+	checkEq(t, state.OutputStr.String(), "called")
 }
 
 func TestConsumeNormalize(t *testing.T) {
@@ -168,9 +168,9 @@ func TestConsumeNormalize(t *testing.T) {
 		Do: func(state *State, _ ...interface{}) error {
 			args := state.Args()
 			if len(args) != 0 {
-				state.OutputStr = "failed"
+				state.OutputStr.WriteString("failed")
 			} else {
-				state.OutputStr = "called"
+				state.OutputStr.WriteString("called")
 			}
 			return nil
 		},
@@ -181,7 +181,7 @@ func TestConsumeNormalize(t *testing.T) {
 	err = act.Parse(state, []string{"test", "arg1", "arg2", "arg3"})
 	checkEq(t, err, nil)
 
-	checkEq(t, state.OutputStr, "called")
+	checkEq(t, state.OutputStr.String(), "called")
 }
 
 func TestConsumeThenTrigger(t *testing.T) {
@@ -191,9 +191,9 @@ func TestConsumeThenTrigger(t *testing.T) {
 		Do: func(state *State, _ ...interface{}) error {
 			args := state.Args()
 			if args[0] != "arg1" || args[1] != "arg2" || len(args) != 2 {
-				state.OutputStr = "failed"
+				state.OutputStr.WriteString("failed")
 			} else {
-				state.OutputStr = "called"
+				state.OutputStr.WriteString("called")
 			}
 			return nil
 		},
@@ -202,7 +202,7 @@ func TestConsumeThenTrigger(t *testing.T) {
 	subAct := Action{
 		Trigger: "arg1",
 		Do: func(state *State, _ ...interface{}) error {
-			state.OutputStr += " sub"
+			state.OutputStr.WriteString(" sub")
 			return nil
 		},
 	}
@@ -213,7 +213,7 @@ func TestConsumeThenTrigger(t *testing.T) {
 	state := &State{}
 	act.Parse(state, []string{"test", "arg1", "arg2", "arg1"})
 
-	checkEq(t, state.OutputStr, "called sub")
+	checkEq(t, state.OutputStr.String(), "called sub")
 }
 
 func TestConsumeNotTrigger(t *testing.T) {
@@ -224,9 +224,9 @@ func TestConsumeNotTrigger(t *testing.T) {
 		Do: func(state *State, _ ...interface{}) error {
 			args := state.Args()
 			if args[0] != "arg1" || args[1] != "arg2" || args[2] != "arg1" || len(args) != 3 {
-				state.OutputStr = "failed"
+				state.OutputStr.WriteString("failed")
 			} else {
-				state.OutputStr = "called"
+				state.OutputStr.WriteString("called")
 			}
 			return nil
 		},
@@ -235,7 +235,7 @@ func TestConsumeNotTrigger(t *testing.T) {
 	subAct := Action{
 		Trigger: "arg1",
 		Do: func(state *State, _ ...interface{}) error {
-			state.OutputStr += " sub"
+			state.OutputStr.WriteString(" sub")
 			return nil
 		},
 	}
@@ -246,7 +246,7 @@ func TestConsumeNotTrigger(t *testing.T) {
 	state := &State{}
 	act.Parse(state, []string{"test", "arg1", "arg2", "arg1"})
 
-	checkEq(t, state.OutputStr, "called")
+	checkEq(t, state.OutputStr.String(), "called")
 }
 
 func TestNoConsume(t *testing.T) {
@@ -256,9 +256,9 @@ func TestNoConsume(t *testing.T) {
 		Do: func(state *State, _ ...interface{}) error {
 			args := state.Args()
 			if args[0] != "arg1" || args[1] != "arg2" || len(args) != 2 {
-				state.OutputStr = "failed"
+				state.OutputStr.WriteString("failed")
 			} else {
-				state.OutputStr = "called"
+				state.OutputStr.WriteString("called")
 			}
 			return nil
 		},
@@ -270,9 +270,9 @@ func TestNoConsume(t *testing.T) {
 		Do: func(state *State, _ ...interface{}) error {
 			args := state.Args()
 			if len(args) != 0 {
-				state.OutputStr += "failed"
+				state.OutputStr.WriteString("failed")
 			} else {
-				state.OutputStr += " sub"
+				state.OutputStr.WriteString(" sub")
 			}
 			return nil
 		},
@@ -284,14 +284,14 @@ func TestNoConsume(t *testing.T) {
 	state := &State{}
 	act.Parse(state, []string{"test", "arg1", "arg2", "arg1"})
 
-	checkEq(t, state.OutputStr, "called sub")
+	checkEq(t, state.OutputStr.String(), "called sub")
 }
 
 func TestCommonChildren(t *testing.T) {
 	root := Action{
 		Trigger: "root",
 		Do: func(state *State, _ ...interface{}) error {
-			state.OutputStr = "root"
+			state.OutputStr.WriteString("root")
 			return nil
 		},
 	}
@@ -299,7 +299,7 @@ func TestCommonChildren(t *testing.T) {
 	sub1 := Action{
 		Trigger: "sub1",
 		Do: func(state *State, _ ...interface{}) error {
-			state.OutputStr += " sub1"
+			state.OutputStr.WriteString(" sub1")
 			return nil
 		},
 	}
@@ -307,7 +307,7 @@ func TestCommonChildren(t *testing.T) {
 	sub2 := Action{
 		Trigger: "sub2",
 		Do: func(state *State, _ ...interface{}) error {
-			state.OutputStr += " sub2"
+			state.OutputStr.WriteString(" sub2")
 			return nil
 		},
 	}
@@ -315,7 +315,7 @@ func TestCommonChildren(t *testing.T) {
 	common := Action{
 		Trigger: "common",
 		Do: func(state *State, _ ...interface{}) error {
-			state.OutputStr += " common"
+			state.OutputStr.WriteString(" common")
 			return nil
 		},
 	}
@@ -331,11 +331,12 @@ func TestCommonChildren(t *testing.T) {
 	state := &State{}
 	err = root.Parse(state, []string{"root", "sub1", "common"})
 	checkEq(t, err, nil)
-	checkEq(t, state.OutputStr, "root sub1 common")
+	checkEq(t, state.OutputStr.String(), "root sub1 common")
 
+	state = &State{}
 	err = root.Parse(state, []string{"root", "sub2", "common"})
 	checkEq(t, err, nil)
-	checkEq(t, state.OutputStr, "root sub2 common")
+	checkEq(t, state.OutputStr.String(), "root sub2 common")
 }
 
 func TestEmptyTriggerError(t *testing.T) {
@@ -366,7 +367,7 @@ func TestDuplicatedSubActionError(t *testing.T) {
 	root := Action{
 		Trigger: "root",
 		Do: func(state *State, _ ...interface{}) error {
-			state.OutputStr = "root"
+			state.OutputStr.WriteString("root")
 			return nil
 		},
 	}
@@ -374,7 +375,7 @@ func TestDuplicatedSubActionError(t *testing.T) {
 	sub1 := Action{
 		Trigger: "sub1",
 		Do: func(state *State, _ ...interface{}) error {
-			state.OutputStr += " sub1"
+			state.OutputStr.WriteString(" sub1")
 			return nil
 		},
 	}
@@ -382,7 +383,7 @@ func TestDuplicatedSubActionError(t *testing.T) {
 	sub2 := Action{
 		Trigger: "sub1",
 		Do: func(state *State, _ ...interface{}) error {
-			state.OutputStr += " sub1"
+			state.OutputStr.WriteString(" sub1")
 			return nil
 		},
 	}
@@ -607,7 +608,7 @@ func TestParseWithEmptyArgs(t *testing.T) {
 	act := Action{
 		Trigger: "test",
 		Do: func(state *State, _ ...interface{}) error {
-			state.OutputStr = "called"
+			state.OutputStr.WriteString("called")
 			return nil
 		},
 	}
@@ -617,7 +618,7 @@ func TestParseWithEmptyArgs(t *testing.T) {
 	state := &State{}
 	err = act.Parse(state, []string{})
 	checkEq(t, err, nil)
-	checkEq(t, state.OutputStr, "")
+	checkEq(t, state.OutputStr.String(), "")
 }
 
 func TestConsumeAllButDoNothing(t *testing.T) {

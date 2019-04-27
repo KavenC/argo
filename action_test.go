@@ -71,7 +71,16 @@ func TestSubTrigger(t *testing.T) {
 func TestPath(t *testing.T) {
 	checkEq(t, Action{}.Path(), "")
 	checkEq(t, Action{Trigger: "test"}.Path(), "test")
-	// TODO
+	root := Action{Trigger: "root"}
+	sub := Action{Trigger: "sub"}
+	subsub := Action{Trigger: "subsub"}
+
+	sub.AddSubAction(subsub)
+	checkEq(t, sub.GetSubAction("subsub").Path(), "sub subsub")
+	root.AddSubAction(sub)
+	root.Finalize()
+	checkEq(t, root.GetSubAction("sub").GetSubAction("subsub").Path(),
+		"root sub subsub")
 }
 
 func TestConsumeMin(t *testing.T) {

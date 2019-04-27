@@ -267,6 +267,13 @@ func finalizeActionTree(parent *Action, act *Action) error {
 		act.MaxConsume = act.MinConsume
 	}
 
+	// Setup Path
+	if act.parent == nil {
+		act.pathCached = act.Trigger
+	} else {
+		act.pathCached = act.parent.Path() + " " + act.Trigger
+	}
+
 	// Setup Help text
 	if act.HelpGen == nil {
 		if act.parent == nil {

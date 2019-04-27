@@ -590,13 +590,30 @@ func TestHelpBasic(t *testing.T) {
 	act.Parse(state, []string{"cmd", "help"})
 
 	checkEq(t, state.OutputStr.String(),
-		`cmd
+		`[Usage]cmd
 
 help long
 
 Sub-actions:
        sub   sub short
       help   Display help for this Action or Sub-action`)
+}
+
+func TestHelpBasicMini(t *testing.T) {
+	act := Action{
+		Trigger: "cmd",
+	}
+
+	act.Finalize()
+	state := &State{}
+	act.Parse(state, []string{"cmd", "help"})
+
+	checkEq(t, state.OutputStr.String(),
+		`[Usage]
+cmd
+
+[Sub-actions]
+help              Display help for this Action or Sub-action`)
 }
 
 func TestHelpFallbackShort(t *testing.T) {

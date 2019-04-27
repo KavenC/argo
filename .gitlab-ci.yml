@@ -1,0 +1,17 @@
+image: golang:1.11
+
+stages:
+  - test
+
+codechecks:
+  stage: test
+  script:
+    - go get -u golang.org/x/lint/golint
+    - diff -u <(echo -n) <(gofmt -d -s .)
+    - diff -u <(echo -n) <(go vet . 2>&1)
+    - golint -set_exit_status ./...
+
+gotest:
+  stage: test
+  script: go test -cover -v ./...
+  coverage: '/coverage: \d+\.\d+/'

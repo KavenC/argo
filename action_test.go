@@ -526,6 +526,32 @@ func TestParseVargs(t *testing.T) {
 	checkEq(t, err, nil)
 }
 
+func TestParseVargsSub(t *testing.T) {
+	root := Action{
+		Trigger: "root",
+	}
+	act := Action{
+		Trigger: "test",
+		Do: func(_ *State, vargs ...interface{}) error {
+			if len(vargs) != 1 {
+				return errors.New("error")
+			}
+
+			v, ok := vargs[0].(int)
+			if !ok || v != 9527 {
+				return errors.New("error")
+			}
+
+			return nil
+		},
+	}
+	root.AddSubAction(act)
+
+	root.Finalize()
+	err := root.Parse(&State{}, []string{"root", "test"}, 9527)
+	checkEq(t, err, nil)
+}
+
 func checkSubActions(t *testing.T, target []string, check []string) {
 	checkEq(t, len(target), len(check))
 	for index, act := range target {

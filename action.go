@@ -431,7 +431,7 @@ func (act Action) Parse(state *State, args []string, vargs ...interface{}) error
 
 		// Try to trigger SubActions with next arg
 		if subAct, ok := act.subActionLookup[args[0]]; ok {
-			return subAct.Parse(state, args, vargs)
+			return subAct.Parse(state, args, vargs...)
 		}
 
 		return nil

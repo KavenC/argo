@@ -1,9 +1,11 @@
 package argo
 
+import "strings"
+
 // State keeps the state withing a argument parsing call
 type State struct {
 	// String reply after arguments are parsed
-	OutputStr string
+	OutputStr strings.Builder
 	doArgs    []string
 }
 

@@ -1,6 +1,9 @@
 package argo
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Action defines the action to be done for the specified matching args
 type Action struct {
@@ -28,25 +31,51 @@ type Action struct {
 	// LongDescr the complete description of this Action
 	LongDescr string
 
-	// HelpTextGenerator is used to format help text for this action and all it's subactions which do not have a HelpTextGenerator
-	// If HelpTextGenerator is not assigned in this Action and any of its ancestors, a default HelpTextGenerator will be used
-	HelpTextGenerator func(Action) string
+	// ArgNames optional slice of strings used as references for generating help text
+	ArgNames []string
 
-	parent          *Action
-	pathCached      string
-	subActionLookup map[string]*Action
-	subActionCopy   []Action
-	finalized       bool
+	// Hidden is true if this action should be hidden in help text
+	Hidden bool
+
+	// DisableHelp avoids auto injecting help SubAction for generating help text
+	DisableHelp bool
+
+	// HelpTrigger will be used as Trigger for the auto injected Help SubAction
+	// If the string is not set (default), "help" will be used as Trigger
+	HelpTrigger string
+
+	// HelpGen is used to generate help text for this Action
+	// If this is not set, it will be assigned as a default generator in Finalize()
+	HelpGen func(Action) string
+
+	parent              *Action
+	pathCached          string
+	subActionLookupTemp map[string]Action
+	subActionLookup     map[string]*Action
+	subActionTrigger    []string
+	helpTextCached      string
+	finalized           bool
+}
+
+// Help returns help text for this action
+func (act *Action) Help() string {
+	if act.helpTextCached == "" && act.HelpGen != nil {
+		act.helpTextCached = act.HelpGen(*act)
+	}
+	return act.helpTextCached
 }
 
 // SubActions returns all immediate SubActions
-func (act Action) SubActions() []Action {
-	return act.subActionCopy
+func (act Action) SubActions() []string {
+	return act.subActionTrigger
 }
 
 // GetSubAction retrieve subaction with Trigger is `trigger`
 // If there is no matched subaction, and empty Action{} is returned
 func (act Action) GetSubAction(trigger string) Action {
+	if act.subActionLookup == nil {
+		return act.subActionLookupTemp[trigger]
+	}
 	ret := act.subActionLookup[trigger]
 	if ret == nil {
 		return Action{}
@@ -65,10 +94,11 @@ func (act Action) Path() string {
 // EmptyTriggerError indicates an invalid Action which has empty Trigger string
 type EmptyTriggerError struct {
 	Err
+	Path string
 }
 
-func (EmptyTriggerError) Error() string {
-	return "Action with empty Trigger is not allowed"
+func (e EmptyTriggerError) Error() string {
+	return fmt.Sprintf("Action with empty Trigger is not allowed. Path: %s", e.Path)
 }
 
 // ActionAlreadyAssginedError indicates adding an Action which belongs to an ActionTree as SubAction
@@ -92,6 +122,16 @@ func (e DuplicatedSubActionError) Error() string {
 	return fmt.Sprintf("SubAction Already Exists, Trigger: %s", e.Trigger)
 }
 
+// UnreachableActionError indicates an Action will never be reached due to its parent consumed all args
+type UnreachableActionError struct {
+	Err
+	Path string
+}
+
+func (e UnreachableActionError) Error() string {
+	return fmt.Sprintf("Action is unreachable: %s", e.Path)
+}
+
 // AddSubAction append an SubAction to handle further triggering args
 func (act *Action) AddSubAction(subAct Action) error {
 	if subAct.Trigger == "" {
@@ -102,16 +142,20 @@ func (act *Action) AddSubAction(subAct Action) error {
 		return ActionAlreadyAssginedError{AssignedPath: subAct.Path()}
 	}
 
-	if act.subActionLookup == nil {
-		act.subActionLookup = make(map[string]*Action)
-	} else if _, ok := act.subActionLookup[subAct.Trigger]; ok {
+	if act.MaxConsume < 0 {
+		return UnreachableActionError{Path: act.Path() + " " + subAct.Trigger}
+	}
+
+	if act.subActionLookupTemp == nil {
+		act.subActionLookupTemp = make(map[string]Action)
+	} else if _, ok := act.subActionLookupTemp[subAct.Trigger]; ok {
 		return DuplicatedSubActionError{Trigger: subAct.Trigger}
 	}
 
 	subAct.parent = act
 	subAct.pathCached = subAct.parent.Path() + " " + subAct.Trigger
-	act.subActionCopy = append(act.subActionCopy, subAct)
-	act.subActionLookup[subAct.Trigger] = &subAct
+	act.subActionTrigger = append(act.subActionTrigger, subAct.Trigger)
+	act.subActionLookupTemp[subAct.Trigger] = subAct
 	return nil
 }
 
@@ -137,14 +181,82 @@ func (e DoubleFinalizeError) Error() string {
 	return str
 }
 
-func finalizeActionTree(act *Action, finalized []*Action) error {
+func defaultHelpGenerator(act Action) string {
+	text := strings.Builder{}
+
+	text.WriteString(act.Path())
+
+	if act.MaxConsume != 0 {
+		argNum := 0
+		if act.MaxConsume > 0 {
+			argNum = act.MaxConsume
+		} else {
+			argNum = act.MinConsume
+		}
+
+		requiredArgs := make([]string, argNum)
+		if len(act.ArgNames) > 0 {
+			copy(requiredArgs, act.ArgNames)
+		}
+
+		for index, arg := range requiredArgs[:act.MinConsume] {
+			if arg == "" {
+				text.WriteString(fmt.Sprintf(" %s%d", "arg", index+1))
+			} else {
+				text.WriteString(fmt.Sprintf(" %s", arg))
+			}
+		}
+
+		if act.MaxConsume < 0 {
+			if len(act.ArgNames) > act.MinConsume {
+				text.WriteString(fmt.Sprintf("[ %s ...]", act.ArgNames[act.MinConsume]))
+			} else {
+				text.WriteString("[ argN ...]")
+			}
+		} else if act.MaxConsume > act.MinConsume {
+			text.WriteString("[")
+			for index, arg := range requiredArgs[act.MinConsume:] {
+				if arg == "" {
+					text.WriteString(fmt.Sprintf(" %s%d", "arg", index+act.MinConsume+1))
+				} else {
+					text.WriteString(fmt.Sprintf(" %s", arg))
+				}
+			}
+			text.WriteString("]")
+		}
+	}
+	text.WriteString("\n\n")
+
+	if act.LongDescr != "" {
+		text.WriteString(fmt.Sprint(act.LongDescr))
+	} else if act.ShortDescr != "" {
+		text.WriteString(fmt.Sprint(act.ShortDescr))
+	}
+
+	subAct := act.SubActions()
+	if len(subAct) != 0 {
+		text.WriteString("\n\n")
+		text.WriteString("Sub-actions:")
+		for _, sub := range subAct {
+			subAct := act.GetSubAction(sub)
+			text.WriteString(fmt.Sprintf("\n%10v   %s", subAct.Trigger, subAct.ShortDescr))
+		}
+	}
+
+	return text.String()
+}
+
+func finalizeActionTree(parent *Action, act *Action) error {
 	if act.finalized {
 		return DoubleFinalizeError{Victim: *act}
 	}
 
 	if act.Trigger == "" {
-		return EmptyTriggerError{}
+		return EmptyTriggerError{Path: act.Path()}
 	}
+
+	// Retarget parent
+	act.parent = parent
 
 	// Normalize Min/MaxConsume settings
 	if act.MinConsume < 0 {
@@ -155,15 +267,66 @@ func finalizeActionTree(act *Action, finalized []*Action) error {
 		act.MaxConsume = act.MinConsume
 	}
 
-	// Create empty lookupTable for leaf Actions to simplify parsing logics
-	if act.subActionLookup == nil {
-		act.subActionLookup = make(map[string]*Action)
+	// Setup Help text
+	if act.HelpGen == nil {
+		if act.parent == nil {
+			act.HelpGen = defaultHelpGenerator
+		} else {
+			act.HelpGen = act.parent.HelpGen
+		}
+	}
+
+	// Inject help SubAction
+	if act.HelpTrigger == "" {
+		if act.parent == nil {
+			act.HelpTrigger = "help"
+		} else {
+			act.HelpTrigger = act.parent.HelpTrigger
+		}
+	}
+
+	if !act.DisableHelp && act.MaxConsume >= 0 {
+		err := act.AddSubAction(Action{
+			Trigger:    act.HelpTrigger,
+			MaxConsume: 1,
+			Do: func(state *State, _ ...interface{}) error {
+				args := state.Args()
+				if len(args) > 0 {
+					cmd := args[0]
+					targetAct := act.GetSubAction(cmd)
+					if targetAct.Trigger == "" {
+						fmt.Fprintf(&state.OutputStr, "Sub action not found: %s %s", act.Path(), cmd)
+					} else {
+						state.OutputStr.WriteString(targetAct.Help())
+					}
+				} else {
+					state.OutputStr.WriteString(act.Help())
+				}
+				return nil
+			},
+			ShortDescr:  "Display help for this Action or Sub-action",
+			DisableHelp: true,
+		})
+
+		if err != nil {
+			_, helpExists := err.(DuplicatedSubActionError)
+			if !helpExists {
+				return err // should not reach
+			}
+		}
+	}
+
+	// Create lookupTable
+	act.subActionLookup = make(map[string]*Action)
+	for subTrigger, subAct := range act.subActionLookupTemp {
+		tempAct := subAct
+		act.subActionLookup[subTrigger] = &tempAct
 	}
 
 	act.finalized = true
 
-	for _, nextAct := range act.subActionLookup {
-		if err := finalizeActionTree(nextAct, finalized); err != nil {
+	for _, subAct := range act.subActionLookup {
+		if err := finalizeActionTree(act, subAct); err != nil {
 			return err
 		}
 	}
@@ -176,8 +339,7 @@ func finalizeActionTree(act *Action, finalized []*Action) error {
 // Finalize should be called only once
 // Do not attempt to modified any members of Actions in the Action tree after a Finalize() call
 func (act *Action) Finalize() error {
-	var finalized []*Action
-	return finalizeActionTree(act, finalized)
+	return finalizeActionTree(nil, act)
 }
 
 // TooFewArgsError indicates an Action is triggered with few args then Action.MinConsume

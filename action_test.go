@@ -517,10 +517,10 @@ func TestParseVargs(t *testing.T) {
 	checkEq(t, err, nil)
 }
 
-func checkSubActions(t *testing.T, target []Action, check []string) {
+func checkSubActions(t *testing.T, target []string, check []string) {
 	checkEq(t, len(target), len(check))
 	for index, act := range target {
-		checkEq(t, act.Trigger, check[index])
+		checkEq(t, act, check[index])
 	}
 }
 
@@ -534,8 +534,7 @@ func TestSubActions(t *testing.T) {
 
 	checkSubActions(t, root.SubActions(), []string{"sub1", "sub2"})
 	checkSubActions(t,
-		root.GetSubAction("sub2").SubActions(),
-		[]string{"subsub1", "subsub2"})
+		root.GetSubAction("sub2").SubActions(), []string{"subsub1", "subsub2"})
 }
 
 func TestGetSubAction(t *testing.T) {
@@ -550,6 +549,407 @@ func TestGetSubAction(t *testing.T) {
 	checkEq(t, root.GetSubAction("sub2").GetSubAction("subsub1").Trigger, "subsub1")
 	checkEq(t, root.GetSubAction("none").Trigger, "")
 	checkEq(t, root.GetSubAction("sub1").GetSubAction("none").Trigger, "")
+}
+
+func TestUnreachableActionError(t *testing.T) {
+	act := Action{
+		Trigger:    "root",
+		MaxConsume: -1,
+	}
+
+	err := act.AddSubAction(Action{Trigger: "unreach"})
+	argoErr, ok := err.(UnreachableActionError)
+	checkEq(t, ok, true)
+	checkEq(t, strings.Contains(argoErr.Error(), "unreachable"), true)
+	checkEq(t, strings.Contains(argoErr.Error(), "root unreach"), true)
+}
+
+func TestHelpBasic(t *testing.T) {
+	act := Action{
+		Trigger:   "cmd",
+		LongDescr: "help long",
+	}
+
+	act.AddSubAction(Action{
+		Trigger:    "sub",
+		ShortDescr: "sub short",
+		LongDescr:  "sub long",
+	})
+
+	act.Finalize()
+	state := &State{}
+	act.Parse(state, []string{"cmd", "help"})
+
+	checkEq(t, state.OutputStr.String(),
+		`cmd
+
+help long
+
+Sub-actions:
+       sub   sub short
+      help   Display help for this Action or Sub-action`)
+}
+
+func TestHelpFallbackShort(t *testing.T) {
+	act := Action{
+		Trigger:    "cmd",
+		ShortDescr: "help long",
+	}
+
+	act.Finalize()
+	state := &State{}
+	act.Parse(state, []string{"cmd", "help"})
+
+	checkEq(t, state.OutputStr.String(),
+		`cmd
+
+help long
+
+Sub-actions:
+      help   Display help for this Action or Sub-action`)
+}
+
+func TestHelpDisable(t *testing.T) {
+	act := Action{
+		Trigger:     "cmd",
+		ShortDescr:  "help long",
+		DisableHelp: true,
+	}
+
+	act.Finalize()
+	state := &State{}
+	act.Parse(state, []string{"cmd", "help"})
+
+	checkEq(t, state.OutputStr.String(), "")
+}
+
+func TestHelpGen(t *testing.T) {
+	act := Action{
+		Trigger:    "cmd",
+		ShortDescr: "help long",
+		HelpGen: func(_ Action) string {
+			return "custom help"
+		},
+	}
+
+	act.Finalize()
+	state := &State{}
+	act.Parse(state, []string{"cmd", "help"})
+
+	checkEq(t, state.OutputStr.String(), "custom help")
+}
+
+func TestHelpInheritGen(t *testing.T) {
+	act := Action{
+		Trigger:    "cmd",
+		ShortDescr: "help long",
+		HelpGen: func(_ Action) string {
+			return "custom help"
+		},
+	}
+
+	act.AddSubAction(Action{
+		Trigger: "sub",
+	})
+
+	act.Finalize()
+	state := &State{}
+	act.Parse(state, []string{"cmd", "sub", "help"})
+
+	checkEq(t, state.OutputStr.String(), "custom help")
+}
+
+func TestHelpSubGen(t *testing.T) {
+	act := Action{
+		Trigger:    "cmd",
+		ShortDescr: "help long",
+		HelpGen: func(_ Action) string {
+			return "custom help"
+		},
+	}
+
+	act.AddSubAction(Action{
+		Trigger: "sub",
+		HelpGen: func(_ Action) string {
+			return "sub custom"
+		},
+	})
+
+	act.Finalize()
+	state := &State{}
+	act.Parse(state, []string{"cmd", "sub", "help"})
+
+	checkEq(t, state.OutputStr.String(), "sub custom")
+}
+
+func TestHelpDirect(t *testing.T) {
+	act := Action{
+		Trigger:    "cmd",
+		ShortDescr: "help long",
+	}
+
+	act.Finalize()
+	state := &State{}
+	act.Parse(state, []string{"cmd", "help"})
+
+	checkEq(t, state.OutputStr.String(), act.Help())
+}
+
+func TestHelpGenDirect(t *testing.T) {
+	act := Action{
+		Trigger:    "cmd",
+		ShortDescr: "help long",
+		HelpGen: func(_ Action) string {
+			return "custom help"
+		},
+	}
+
+	act.Finalize()
+	state := &State{}
+	act.Parse(state, []string{"cmd", "help"})
+
+	checkEq(t, state.OutputStr.String(), act.Help())
+}
+
+func TestHelpArg(t *testing.T) {
+	act := Action{
+		Trigger:    "cmd",
+		ShortDescr: "descr",
+	}
+
+	act.AddSubAction(Action{
+		Trigger:    "sub",
+		ShortDescr: "Short descr",
+		MinConsume: 2,
+		MaxConsume: -1,
+	})
+
+	act.Finalize()
+	state := &State{}
+	act.Parse(state, []string{"cmd", "help", "sub"})
+
+	checkEq(t, state.OutputStr.String(),
+		`cmd sub arg1 arg2[ argN ...]
+
+Short descr`)
+}
+
+func TestHelpArgNotFound(t *testing.T) {
+	act := Action{
+		Trigger:    "cmd",
+		ShortDescr: "descr",
+	}
+
+	act.AddSubAction(Action{
+		Trigger:    "sub",
+		ShortDescr: "Short descr",
+		MinConsume: 2,
+		MaxConsume: -1,
+	})
+
+	act.Finalize()
+	state := &State{}
+	act.Parse(state, []string{"cmd", "help", "sub2"})
+
+	checkEq(t, strings.Contains(state.OutputStr.String(), "not found"), true)
+
+}
+
+func TestHelpArgCustomName(t *testing.T) {
+	act := Action{
+		Trigger:    "cmd",
+		ShortDescr: "descr",
+	}
+
+	act.AddSubAction(Action{
+		Trigger:    "sub",
+		ShortDescr: "Short descr",
+		ArgNames:   []string{"c1", "c2"},
+		MinConsume: 2,
+		MaxConsume: -1,
+	})
+
+	act.Finalize()
+	state := &State{}
+	act.Parse(state, []string{"cmd", "help", "sub"})
+
+	checkEq(t, state.OutputStr.String(),
+		`cmd sub c1 c2[ argN ...]
+
+Short descr`)
+}
+
+func TestHelpArgCustomNameMax(t *testing.T) {
+	act := Action{
+		Trigger:    "cmd",
+		ShortDescr: "descr",
+	}
+
+	act.AddSubAction(Action{
+		Trigger:    "sub",
+		ShortDescr: "Short descr",
+		ArgNames:   []string{"c1", "c2", "c3", "c4"},
+		MinConsume: 2,
+		MaxConsume: 4,
+	})
+
+	act.Finalize()
+	state := &State{}
+	act.Parse(state, []string{"cmd", "help", "sub"})
+
+	checkEq(t, state.OutputStr.String(),
+		`cmd sub c1 c2[ c3 c4]
+
+Short descr
+
+Sub-actions:
+      help   Display help for this Action or Sub-action`)
+}
+
+func TestHelpArgCustomNameInfinite(t *testing.T) {
+	act := Action{
+		Trigger:    "cmd",
+		ShortDescr: "descr",
+	}
+
+	act.AddSubAction(Action{
+		Trigger:    "sub",
+		ShortDescr: "Short descr",
+		ArgNames:   []string{"c1", "c2", "c3", "c4"},
+		MinConsume: 2,
+		MaxConsume: -1,
+	})
+
+	act.Finalize()
+	state := &State{}
+	act.Parse(state, []string{"cmd", "help", "sub"})
+
+	checkEq(t, state.OutputStr.String(),
+		`cmd sub c1 c2[ c3 ...]
+
+Short descr`)
+}
+
+func TestHelpArgCustomNamePartial(t *testing.T) {
+	act := Action{
+		Trigger:    "cmd",
+		ShortDescr: "descr",
+	}
+
+	act.AddSubAction(Action{
+		Trigger:    "sub",
+		ShortDescr: "Short descr",
+		ArgNames:   []string{"c1"},
+		MinConsume: 2,
+		MaxConsume: -1,
+	})
+
+	act.Finalize()
+	state := &State{}
+	act.Parse(state, []string{"cmd", "help", "sub"})
+
+	checkEq(t, state.OutputStr.String(),
+		`cmd sub c1 arg2[ argN ...]
+
+Short descr`)
+}
+
+func TestHelpArgCustomNameOptional(t *testing.T) {
+	act := Action{
+		Trigger:    "cmd",
+		ShortDescr: "descr",
+	}
+
+	act.AddSubAction(Action{
+		Trigger:    "sub",
+		ShortDescr: "Short descr",
+		ArgNames:   []string{"c1"},
+		MinConsume: 2,
+		MaxConsume: 5,
+	})
+
+	act.Finalize()
+	state := &State{}
+	act.Parse(state, []string{"cmd", "help", "sub"})
+
+	checkEq(t, state.OutputStr.String(),
+		`cmd sub c1 arg2[ arg3 arg4 arg5]
+
+Short descr
+
+Sub-actions:
+      help   Display help for this Action or Sub-action`)
+}
+
+func TestOverrideHelpSubAction(t *testing.T) {
+	act := Action{
+		Trigger:    "cmd",
+		ShortDescr: "descr",
+	}
+
+	act.AddSubAction(Action{
+		Trigger:    "help",
+		ShortDescr: "Short descr",
+		Do: func(state *State, _ ...interface{}) error {
+			state.OutputStr.WriteString("called")
+			return nil
+		},
+	})
+
+	act.Finalize()
+	state := &State{}
+	act.Parse(state, []string{"cmd", "help", "sub"})
+
+	checkEq(t, state.OutputStr.String(), "called")
+}
+
+func TestCustomHelpTrigger(t *testing.T) {
+	act := Action{
+		Trigger:     "cmd",
+		ShortDescr:  "descr",
+		HelpTrigger: "how",
+	}
+
+	act.AddSubAction(Action{
+		Trigger:    "sub",
+		ShortDescr: "Short descr",
+		MinConsume: 2,
+		MaxConsume: -1,
+	})
+
+	act.Finalize()
+	state := &State{}
+	act.Parse(state, []string{"cmd", "how", "sub"})
+
+	checkEq(t, state.OutputStr.String(),
+		`cmd sub arg1 arg2[ argN ...]
+
+Short descr`)
+}
+
+func TestCustomHelpTriggerSub(t *testing.T) {
+	act := Action{
+		Trigger:     "cmd",
+		ShortDescr:  "descr",
+		HelpTrigger: "how",
+	}
+
+	act.AddSubAction(Action{
+		Trigger:    "sub",
+		ShortDescr: "Short descr",
+	})
+
+	act.Finalize()
+	state := &State{}
+	act.Parse(state, []string{"cmd", "sub", "how"})
+
+	checkEq(t, state.OutputStr.String(),
+		`cmd sub
+
+Short descr
+
+Sub-actions:
+       how   Display help for this Action or Sub-action`)
 }
 
 // Corner cases to fill-up coverage

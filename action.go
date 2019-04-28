@@ -184,62 +184,75 @@ func (e DoubleFinalizeError) Error() string {
 func defaultHelpGenerator(act Action) string {
 	text := strings.Builder{}
 
-	text.WriteString(act.Path())
+	text.WriteString("[Usage]\n")
+	genUsage := func(act Action) string {
+		text := strings.Builder{}
+		text.WriteString(act.Path())
 
-	if act.MaxConsume != 0 {
-		argNum := 0
-		if act.MaxConsume > 0 {
-			argNum = act.MaxConsume
-		} else {
-			argNum = act.MinConsume
-		}
-
-		requiredArgs := make([]string, argNum)
-		if len(act.ArgNames) > 0 {
-			copy(requiredArgs, act.ArgNames)
-		}
-
-		for index, arg := range requiredArgs[:act.MinConsume] {
-			if arg == "" {
-				text.WriteString(fmt.Sprintf(" %s%d", "arg", index+1))
+		if act.MaxConsume != 0 {
+			argNum := 0
+			if act.MaxConsume > 0 {
+				argNum = act.MaxConsume
 			} else {
-				text.WriteString(fmt.Sprintf(" %s", arg))
+				argNum = act.MinConsume
 			}
-		}
 
-		if act.MaxConsume < 0 {
-			if len(act.ArgNames) > act.MinConsume {
-				text.WriteString(fmt.Sprintf("[ %s ...]", act.ArgNames[act.MinConsume]))
-			} else {
-				text.WriteString("[ argN ...]")
+			requiredArgs := make([]string, argNum)
+			if len(act.ArgNames) > 0 {
+				copy(requiredArgs, act.ArgNames)
 			}
-		} else if act.MaxConsume > act.MinConsume {
-			text.WriteString("[")
-			for index, arg := range requiredArgs[act.MinConsume:] {
+
+			for index, arg := range requiredArgs[:act.MinConsume] {
 				if arg == "" {
-					text.WriteString(fmt.Sprintf(" %s%d", "arg", index+act.MinConsume+1))
+					text.WriteString(fmt.Sprintf(" <%s%d>", "arg", index+1))
 				} else {
-					text.WriteString(fmt.Sprintf(" %s", arg))
+					text.WriteString(fmt.Sprintf(" <%s>", arg))
 				}
 			}
-			text.WriteString("]")
+
+			if act.MaxConsume < 0 {
+				if len(act.ArgNames) > act.MinConsume {
+					text.WriteString(fmt.Sprintf(" [%s ...]", act.ArgNames[act.MinConsume]))
+				} else {
+					text.WriteString(" [argN ...]")
+				}
+			} else {
+				if act.MaxConsume > act.MinConsume {
+					text.WriteString(" [")
+					argText := strings.Builder{}
+					for index, arg := range requiredArgs[act.MinConsume:] {
+						if arg == "" {
+							argText.WriteString(fmt.Sprintf("%s%d ", "arg", index+act.MinConsume+1))
+						} else {
+							argText.WriteString(fmt.Sprintf("%s ", arg))
+						}
+					}
+					text.WriteString(strings.TrimSpace(argText.String()))
+					text.WriteString("]")
+				}
+			}
+		} else {
+			text.WriteString(" [sub-action]")
 		}
+
+		return text.String()
 	}
-	text.WriteString("\n\n")
+	text.WriteString(genUsage(act))
 
 	if act.LongDescr != "" {
+		text.WriteString("\n\n[Description]\n")
 		text.WriteString(fmt.Sprint(act.LongDescr))
 	} else if act.ShortDescr != "" {
+		text.WriteString("\n\n[Description]\n")
 		text.WriteString(fmt.Sprint(act.ShortDescr))
 	}
 
 	subAct := act.SubActions()
 	if len(subAct) != 0 {
-		text.WriteString("\n\n")
-		text.WriteString("Sub-actions:")
+		text.WriteString("\n\n[Sub-actions]")
 		for _, sub := range subAct {
 			subAct := act.GetSubAction(sub)
-			text.WriteString(fmt.Sprintf("\n%10v   %s", subAct.Trigger, subAct.ShortDescr))
+			text.WriteString(fmt.Sprintf("\n%s\n- %s", subAct.Trigger, subAct.ShortDescr))
 		}
 	}
 
@@ -267,6 +280,13 @@ func finalizeActionTree(parent *Action, act *Action) error {
 		act.MaxConsume = act.MinConsume
 	}
 
+	// Setup Path
+	if act.parent == nil {
+		act.pathCached = act.Trigger
+	} else {
+		act.pathCached = act.parent.Path() + " " + act.Trigger
+	}
+
 	// Setup Help text
 	if act.HelpGen == nil {
 		if act.parent == nil {
@@ -285,7 +305,7 @@ func finalizeActionTree(parent *Action, act *Action) error {
 		}
 	}
 
-	if !act.DisableHelp && act.MaxConsume >= 0 {
+	if !act.DisableHelp && act.MaxConsume == 0 {
 		err := act.AddSubAction(Action{
 			Trigger:    act.HelpTrigger,
 			MaxConsume: 1,
@@ -304,7 +324,7 @@ func finalizeActionTree(parent *Action, act *Action) error {
 				}
 				return nil
 			},
-			ShortDescr:  "Display help for this Action or Sub-action",
+			ShortDescr:  "Display help for commands",
 			DisableHelp: true,
 		})
 
@@ -411,7 +431,7 @@ func (act Action) Parse(state *State, args []string, vargs ...interface{}) error
 
 		// Try to trigger SubActions with next arg
 		if subAct, ok := act.subActionLookup[args[0]]; ok {
-			return subAct.Parse(state, args, vargs)
+			return subAct.Parse(state, args, vargs...)
 		}
 
 		return nil

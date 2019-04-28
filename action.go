@@ -252,7 +252,7 @@ func defaultHelpGenerator(act Action) string {
 		text.WriteString("\n\n[Sub-actions]")
 		for _, sub := range subAct {
 			subAct := act.GetSubAction(sub)
-			text.WriteString(fmt.Sprintf("\n%s\n  %s", subAct.Trigger, subAct.ShortDescr))
+			text.WriteString(fmt.Sprintf("\n%s\n- %s", subAct.Trigger, subAct.ShortDescr))
 		}
 	}
 

@@ -616,13 +616,17 @@ func TestHelpBasic(t *testing.T) {
 	act.Parse(state, []string{"cmd", "help"})
 
 	checkEq(t, state.OutputStr.String(),
-		`[Usage]cmd
+		`[Usage]
+cmd [sub-action]
 
+[Description]
 help long
 
-Sub-actions:
-       sub   sub short
-      help   Display help for this Action or Sub-action`)
+[Sub-actions]
+sub
+- sub short
+help
+- Display help for commands`)
 }
 
 func TestHelpBasicMini(t *testing.T) {
@@ -636,10 +640,11 @@ func TestHelpBasicMini(t *testing.T) {
 
 	checkEq(t, state.OutputStr.String(),
 		`[Usage]
-cmd
+cmd [sub-action]
 
 [Sub-actions]
-help              Display help for this Action or Sub-action`)
+help
+- Display help for commands`)
 }
 
 func TestHelpFallbackShort(t *testing.T) {
@@ -653,12 +658,15 @@ func TestHelpFallbackShort(t *testing.T) {
 	act.Parse(state, []string{"cmd", "help"})
 
 	checkEq(t, state.OutputStr.String(),
-		`cmd
+		`[Usage]
+cmd [sub-action]
 
+[Description]
 help long
 
-Sub-actions:
-      help   Display help for this Action or Sub-action`)
+[Sub-actions]
+help
+- Display help for commands`)
 }
 
 func TestHelpDisable(t *testing.T) {
@@ -781,8 +789,10 @@ func TestHelpArg(t *testing.T) {
 	act.Parse(state, []string{"cmd", "help", "sub"})
 
 	checkEq(t, state.OutputStr.String(),
-		`cmd sub arg1 arg2[ argN ...]
+		`[Usage]
+cmd sub <arg1> <arg2> [argN ...]
 
+[Description]
 Short descr`)
 }
 
@@ -826,8 +836,10 @@ func TestHelpArgCustomName(t *testing.T) {
 	act.Parse(state, []string{"cmd", "help", "sub"})
 
 	checkEq(t, state.OutputStr.String(),
-		`cmd sub c1 c2[ argN ...]
+		`[Usage]
+cmd sub <c1> <c2> [argN ...]
 
+[Description]
 Short descr`)
 }
 
@@ -850,12 +862,11 @@ func TestHelpArgCustomNameMax(t *testing.T) {
 	act.Parse(state, []string{"cmd", "help", "sub"})
 
 	checkEq(t, state.OutputStr.String(),
-		`cmd sub c1 c2[ c3 c4]
+		`[Usage]
+cmd sub <c1> <c2> [c3 c4]
 
-Short descr
-
-Sub-actions:
-      help   Display help for this Action or Sub-action`)
+[Description]
+Short descr`)
 }
 
 func TestHelpArgCustomNameInfinite(t *testing.T) {
@@ -877,8 +888,10 @@ func TestHelpArgCustomNameInfinite(t *testing.T) {
 	act.Parse(state, []string{"cmd", "help", "sub"})
 
 	checkEq(t, state.OutputStr.String(),
-		`cmd sub c1 c2[ c3 ...]
+		`[Usage]
+cmd sub <c1> <c2> [c3 ...]
 
+[Description]
 Short descr`)
 }
 
@@ -901,8 +914,10 @@ func TestHelpArgCustomNamePartial(t *testing.T) {
 	act.Parse(state, []string{"cmd", "help", "sub"})
 
 	checkEq(t, state.OutputStr.String(),
-		`cmd sub c1 arg2[ argN ...]
+		`[Usage]
+cmd sub <c1> <arg2> [argN ...]
 
+[Description]
 Short descr`)
 }
 
@@ -925,12 +940,11 @@ func TestHelpArgCustomNameOptional(t *testing.T) {
 	act.Parse(state, []string{"cmd", "help", "sub"})
 
 	checkEq(t, state.OutputStr.String(),
-		`cmd sub c1 arg2[ arg3 arg4 arg5]
+		`[Usage]
+cmd sub <c1> <arg2> [arg3 arg4 arg5]
 
-Short descr
-
-Sub-actions:
-      help   Display help for this Action or Sub-action`)
+[Description]
+Short descr`)
 }
 
 func TestOverrideHelpSubAction(t *testing.T) {
@@ -974,8 +988,10 @@ func TestCustomHelpTrigger(t *testing.T) {
 	act.Parse(state, []string{"cmd", "how", "sub"})
 
 	checkEq(t, state.OutputStr.String(),
-		`cmd sub arg1 arg2[ argN ...]
+		`[Usage]
+cmd sub <arg1> <arg2> [argN ...]
 
+[Description]
 Short descr`)
 }
 
@@ -996,12 +1012,15 @@ func TestCustomHelpTriggerSub(t *testing.T) {
 	act.Parse(state, []string{"cmd", "sub", "how"})
 
 	checkEq(t, state.OutputStr.String(),
-		`cmd sub
+		`[Usage]
+cmd sub [sub-action]
 
+[Description]
 Short descr
 
-Sub-actions:
-       how   Display help for this Action or Sub-action`)
+[Sub-actions]
+how
+- Display help for commands`)
 }
 
 // Corner cases to fill-up coverage

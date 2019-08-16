@@ -4,3 +4,7 @@ package argo
 // This can be used to quickly identify whether a returned error comes from Argo
 type Err struct {
 }
+
+func (e Err) Error() string {
+	return ""
+}
